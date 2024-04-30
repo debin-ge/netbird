@@ -66,5 +66,6 @@ func iceRelayAcceptanceMinWait() time.Duration {
 
 func hasICEForceRelayConn() bool {
 	disconnectedTimeoutEnv := os.Getenv(envICEForceRelayConn)
+	log.Debugf("env ICE force relay connection is  %s", disconnectedTimeoutEnv)
 	return strings.ToLower(disconnectedTimeoutEnv) == "true"
 }
