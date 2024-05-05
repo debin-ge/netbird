@@ -265,7 +265,6 @@ func (conn *Conn) reCreateAgent() error {
 func (conn *Conn) candidateTypes() []ice.CandidateType {
 	if hasICEForceRelayConn() {
 		log.Info("ICE force relay connection is true")
-		log.Debug("ICE force relay connection is true")
 		return []ice.CandidateType{ice.CandidateTypeRelay}
 	}
 	// TODO: remove this once we have refactored userspace proxy into the bind package
