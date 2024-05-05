@@ -406,15 +406,6 @@ read_nb_domain() {
   echo "$READ_NETBIRD_DOMAIN"
 }
 
-get_turn_external_ip() {
-  TURN_EXTERNAL_IP_CONFIG="#external-ip="
-  IP=$(curl -s -4 https://jsonip.com | jq -r '.ip')
-  if [[ "x-$IP" != "x-" ]]; then
-    TURN_EXTERNAL_IP_CONFIG="external-ip=$IP"
-  fi
-  echo "$TURN_EXTERNAL_IP_CONFIG"
-}
-
 initEnvironment() {
   CADDY_SECURE_DOMAIN=""
   ZITADEL_EXTERNALSECURE="false"
@@ -422,11 +413,6 @@ initEnvironment() {
   ZITADEL_MASTERKEY="$(openssl rand -base64 32 | head -c 32)"
   NETBIRD_PORT=80
   NETBIRD_HTTP_PROTOCOL="http"
-  TURN_USER="self"
-  TURN_PASSWORD=$(openssl rand -base64 32 | sed 's/=//g')
-  TURN_MIN_PORT=49152
-  TURN_MAX_PORT=65535
-  TURN_EXTERNAL_IP_CONFIG=$(get_turn_external_ip)
 
   if ! check_nb_domain "$NETBIRD_DOMAIN"; then
     NETBIRD_DOMAIN=$(read_nb_domain)
@@ -466,7 +452,6 @@ initEnvironment() {
   renderCaddyfile > Caddyfile
   renderZitadelEnv > zitadel.env
   echo "" > dashboard.env
-  echo "" > turnserver.conf
   echo "" > management.json
 
   mkdir -p machinekey
@@ -479,7 +464,6 @@ initEnvironment() {
   init_zitadel
 
   echo -e "\nRendering NetBird files...\n"
-  renderTurnServerConf > turnserver.conf
   renderManagementJson > management.json
   renderDashboardEnv > dashboard.env
 
@@ -573,40 +557,20 @@ renderCaddyfile() {
 EOF
 }
 
-renderTurnServerConf() {
-  cat <<EOF
-listening-port=3478
-$TURN_EXTERNAL_IP_CONFIG
-tls-listening-port=5349
-min-port=$TURN_MIN_PORT
-max-port=$TURN_MAX_PORT
-fingerprint
-lt-cred-mech
-user=$TURN_USER:$TURN_PASSWORD
-realm=wiretrustee.com
-cert=/etc/coturn/certs/cert.pem
-pkey=/etc/coturn/private/privkey.pem
-log-file=stdout
-no-software-attribute
-pidfile="/var/tmp/turnserver.pid"
-no-cli
-EOF
-}
-
 renderManagementJson() {
   cat <<EOF
 {
     "Stuns": [
         {
             "Proto": "udp",
-            "URI": "stun:$NETBIRD_DOMAIN:3478"
+            "URI": "stun:$TURN_EXTERNAL_IP:3478"
         }
     ],
     "TURNConfig": {
         "Turns": [
             {
                 "Proto": "udp",
-                "URI": "turn:$NETBIRD_DOMAIN:3478",
+                "URI": "turn:$TURN_EXTERNAL_IP:3478",
                 "Username": "$TURN_USER",
                 "Password": "$TURN_PASSWORD"
             }
@@ -742,20 +706,9 @@ services:
       "--log-file", "console",
       "--log-level", "info",
       "--disable-anonymous-metrics=false",
-      "--single-account-mode-domain=netbird.selfhosted",
       "--dns-domain=netbird.selfhosted",
       "--idp-sign-key-refresh-enabled",
     ]
-  # Coturn, AKA relay server
-  coturn:
-    image: coturn/coturn
-    restart: unless-stopped
-    domainname: netbird.relay.selfhosted
-    volumes:
-      - ./turnserver.conf:/etc/turnserver.conf:ro
-    network_mode: host
-    command:
-      - -c /etc/turnserver.conf
   # Zitadel - identity provider
   zitadel:
     restart: 'always'
