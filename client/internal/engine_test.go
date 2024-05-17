@@ -392,7 +392,7 @@ func TestEngine_Sync(t *testing.T) {
 	// feed updates to Engine via mocked Management client
 	updates := make(chan *mgmtProto.SyncResponse)
 	defer close(updates)
-	syncFunc := func(msgHandler func(msg *mgmtProto.SyncResponse) error) error {
+	syncFunc := func(ctx context.Context, msgHandler func(msg *mgmtProto.SyncResponse) error) error {
 		for msg := range updates {
 			err := msgHandler(msg)
 			if err != nil {
@@ -578,7 +578,7 @@ func TestEngine_UpdateNetworkMapWithRoutes(t *testing.T) {
 			}{}
 
 			mockRouteManager := &routemanager.MockManager{
-				UpdateRoutesFunc: func(updateSerial uint64, newRoutes []*route.Route) (map[string]*route.Route, map[string][]*route.Route, error) {
+				UpdateRoutesFunc: func(updateSerial uint64, newRoutes []*route.Route) (map[route.ID]*route.Route, route.HAMap, error) {
 					input.inputSerial = updateSerial
 					input.inputRoutes = newRoutes
 					return nil, nil, testCase.inputErr
@@ -743,7 +743,7 @@ func TestEngine_UpdateNetworkMapWithDNSUpdate(t *testing.T) {
 			assert.NoError(t, err, "shouldn't return error")
 
 			mockRouteManager := &routemanager.MockManager{
-				UpdateRoutesFunc: func(updateSerial uint64, newRoutes []*route.Route) (map[string]*route.Route, map[string][]*route.Route, error) {
+				UpdateRoutesFunc: func(updateSerial uint64, newRoutes []*route.Route) (map[route.ID]*route.Route, route.HAMap, error) {
 					return nil, nil, nil
 				},
 			}
@@ -1042,7 +1042,7 @@ func startManagement(dataDir string) (*grpc.Server, string, error) {
 		return nil, "", err
 	}
 	s := grpc.NewServer(grpc.KeepaliveEnforcementPolicy(kaep), grpc.KeepaliveParams(kasp))
-	store, err := server.NewStoreFromJson(config.Datadir, nil)
+	store, _, err := server.NewTestStoreFromJson(config.Datadir)
 	if err != nil {
 		return nil, "", err
 	}
