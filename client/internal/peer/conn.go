@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"net"
-	"net/netip"
 	"runtime"
 	"strings"
 	"sync"
@@ -99,9 +98,6 @@ type IceCredentials struct {
 	Pwd   string
 }
 
-type BeforeAddPeerHookFunc func(connID nbnet.ConnectionID, IP net.IP) error
-type AfterRemovePeerHookFunc func(connID nbnet.ConnectionID) error
-
 type Conn struct {
 	config ConnConfig
 	mu     sync.Mutex
@@ -136,8 +132,8 @@ type Conn struct {
 	sentExtraSrflx bool
 
 	connID               nbnet.ConnectionID
-	beforeAddPeerHooks   []BeforeAddPeerHookFunc
-	afterRemovePeerHooks []AfterRemovePeerHookFunc
+	beforeAddPeerHooks   []nbnet.AddHookFunc
+	afterRemovePeerHooks []nbnet.RemoveHookFunc
 }
 
 // GetConf returns the connection config
@@ -381,11 +377,11 @@ func isRelayCandidate(candidate ice.Candidate) bool {
 	return candidate.Type() == ice.CandidateTypeRelay
 }
 
-func (conn *Conn) AddBeforeAddPeerHook(hook BeforeAddPeerHookFunc) {
+func (conn *Conn) AddBeforeAddPeerHook(hook nbnet.AddHookFunc) {
 	conn.beforeAddPeerHooks = append(conn.beforeAddPeerHooks, hook)
 }
 
-func (conn *Conn) AddAfterRemovePeerHook(hook AfterRemovePeerHookFunc) {
+func (conn *Conn) AddAfterRemovePeerHook(hook nbnet.RemoveHookFunc) {
 	conn.afterRemovePeerHooks = append(conn.afterRemovePeerHooks, hook)
 }
 
@@ -766,10 +762,6 @@ func (conn *Conn) OnRemoteCandidate(candidate ice.Candidate, haRoutes route.HAMa
 			return
 		}
 
-		if candidateViaRoutes(candidate, haRoutes) {
-			return
-		}
-
 		err := conn.agent.AddRemoteCandidate(candidate)
 		if err != nil {
 			log.Errorf("error while handling remote candidate from peer %s", conn.config.Key)
@@ -799,32 +791,4 @@ func extraSrflxCandidate(candidate ice.Candidate) (*ice.CandidateServerReflexive
 		RelAddr:   relatedAdd.Address,
 		RelPort:   relatedAdd.Port,
 	})
-}
-
-func candidateViaRoutes(candidate ice.Candidate, clientRoutes route.HAMap) bool {
-	var routePrefixes []netip.Prefix
-	for _, routes := range clientRoutes {
-		if len(routes) > 0 && routes[0] != nil {
-			routePrefixes = append(routePrefixes, routes[0].Network)
-		}
-	}
-
-	addr, err := netip.ParseAddr(candidate.Address())
-	if err != nil {
-		log.Errorf("Failed to parse IP address %s: %v", candidate.Address(), err)
-		return false
-	}
-
-	for _, prefix := range routePrefixes {
-		// default route is
-		if prefix.Bits() == 0 {
-			continue
-		}
-
-		if prefix.Contains(addr) {
-			log.Debugf("Ignoring candidate [%s], its address is part of routed network %s", candidate.String(), prefix)
-			return true
-		}
-	}
-	return false
 }
