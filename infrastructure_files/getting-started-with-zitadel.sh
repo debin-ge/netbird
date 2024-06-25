@@ -681,7 +681,7 @@ services:
     volumes:
       - netbird_caddy_data:/data
       - ./Caddyfile:/etc/caddy/Caddyfile
-  #UI dashboard
+  # UI dashboard
   dashboard:
     image: netbirdio/dashboard:latest
     restart: unless-stopped
@@ -713,7 +713,7 @@ services:
   zitadel:
     restart: 'always'
     networks: [netbird]
-    image: 'ghcr.io/zitadel/zitadel:v2.31.3'
+    image: 'ghcr.io/zitadel/zitadel:v2.54.3'
     command: 'start-from-init --masterkeyFromEnv --tlsMode $ZITADEL_TLS_MODE'
     env_file:
       - ./zitadel.env
@@ -727,7 +727,7 @@ services:
   crdb:
     restart: 'always'
     networks: [netbird]
-    image: 'cockroachdb/cockroach:v22.2.2'
+    image: 'cockroachdb/cockroach:latest-v23.2'
     command: 'start-single-node --advertise-addr crdb'
     volumes:
       - netbird_crdb_data:/cockroach/cockroach-data
